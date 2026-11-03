@@ -2,8 +2,6 @@
 
 > 대전 코디세이 AI 올인원 입학연수과정 – 미션 1
 
-> ⚠️ 작성 메모: `TODO` 표시된 부분은 아직 기록이 없는 항목이에요. 결과를 채운 뒤 이 줄과 TODO 표시를 지우세요.
-
 ## 1. 프로젝트 개요
 
 터미널, Docker, Git/GitHub를 직접 설치·설정하여 AI/SW 개발을 위한 작업 환경을 구축한다.
@@ -154,7 +152,7 @@ This message shows that your installation appears to be working correctly.
 
 - Docker 클라이언트와 서버(데몬)가 정상 동작하며, 이미지 다운로드와 컨테이너 실행이 가능함을 확인
 
-![Docker Desktop 컨테이너 목록](images/docker_desktop.png)
+![Docker Desktop 컨테이너 목록](images/docker_desktop.jpg)
 
 ---
 
@@ -167,8 +165,8 @@ This message shows that your installation appears to be working correctly.
 <html>
 <head><meta charset="utf-8"><title>My Docker Web</title></head>
 <body>
-<h1>Hello Docker!</h1>
-<p>Dockerfile로 만든 웹서버입니다.</p>
+  <h1>Hello Docker!</h1>
+  <p>Dockerfile로 만든 웹서버입니다.</p>
 </body>
 </html>
 ```
@@ -234,14 +232,14 @@ f74acf786fa91e121825979b8fb7c9f4b3fa609212c28a0d493548903ab91e43
 ```
 - 변경 사항이 없어 `CACHED`로 빠르게 빌드됨. 기존 컨테이너를 삭제하고 최신 `myweb` 이미지로 다시 실행
 
-![Dockerfile 및 빌드](images/dockerfile_build.png)
+![Dockerfile 및 빌드](images/dockerfile_build.jpg)
 
 ### 6-4. 포트 매핑 접속 확인
 
 - `-p 8080:80` → 내 PC의 8080 포트를 컨테이너의 80 포트(nginx)에 연결
 - 브라우저에서 `http://localhost:8080` 접속 시 웹 페이지 정상 표시
 
-![localhost:8080 접속 화면](images/port_8080.png)
+![localhost:8080 접속 화면](images/port_8080.jpg)
 
 ---
 
@@ -314,7 +312,7 @@ ac42f0da6ba4a818c70026b410a1db352b1e9703c83f4eef79e7721218959527
 PS C:\Users\User\webproject> docker exec bindweb cat /usr/share/nginx/html/index.html
 <h1>Before</h1>
 ```
-![변경 전](images/bind_before.png)
+![변경 전](images/bind_before.jpg)
 
 **호스트 파일 수정 후** (컨테이너 재시작 없음)
 VS Code에서 호스트의 `bindtest/index.html` 내용을 `<h1>after</h1>`로 수정·저장한 뒤 확인
@@ -322,7 +320,7 @@ VS Code에서 호스트의 `bindtest/index.html` 내용을 `<h1>after</h1>`로 �
 PS C:\Users\User\webproject> docker exec bindweb cat /usr/share/nginx/html/index.html
 <h1>after</h1>
 ```
-![변경 후](images/bind_after.png)
+![변경 후](images/bind_after.jpg)
 
 - 결과: 호스트 파일 수정이 컨테이너와 브라우저(`localhost:8081`)에 즉시 반영됨
 
@@ -394,16 +392,25 @@ init.defaultbranch=main
 
 **VS Code GitHub 로그인**
 
-![VS Code GitHub 로그인](images/vscode_github_login.png)
+![VS Code GitHub 로그인](images/vscode_github_login.jpg)
 
 **저장소 연동**
-```
-TODO: git remote -v 결과
-TODO: git log --oneline 결과
-```
-![VS Code 소스 제어](images/vscode_source_control.png)
 
-![GitHub 저장소](images/github_repo.png)
+VS Code 소스 제어의 **Publish to GitHub** 기능으로 `webproject` 폴더를 공개 저장소에 업로드하고, 이후 변경 사항을 Commit → Sync(Push)로 반영했다.
+
+- 저장소: [yeoreumjoo/mission1_yeoreum](https://github.com/yeoreumjoo/mission1_yeoreum) (Public)
+- 브랜치: `main`
+- 커밋 기록
+  - `7a5dd7a` first commit (app, bindtest, images 업로드)
+  - `d24ac43` readme 추가 (README.md 및 캡처 추가)
+
+VS Code 소스 제어 화면 (`first commit`, `main` 브랜치 및 원격 연결 확인)
+
+![VS Code 소스 제어](images/vscode_source_control.jpg)
+
+GitHub 저장소 화면 (업로드된 파일 및 README 확인)
+
+![GitHub 저장소](images/github_repo.jpg)
 
 ---
 
@@ -459,4 +466,4 @@ TODO: git log --oneline 결과
 | 바인드 마운트 | `docker run -v`, `docker exec ... cat` | [8](#8-바인드-마운트-검증) |
 | 볼륨 영속성 | `docker volume create`, `docker rm`, `docker exec ... cat` | [9](#9-docker-볼륨-영속성-검증) |
 | Git 설정 | `git config --list` | [10](#10-git-설정-및-githubvs-code-연동) |
-| GitHub 연동 | `git remote -v`, `git log --oneline` | [10](#10-git-설정-및-githubvs-code-연동) |
+| GitHub 연동 | VS Code Publish to GitHub, Commit → Sync | [10](#10-git-설정-및-githubvs-code-연동) |
