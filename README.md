@@ -14,6 +14,25 @@
 
 > 이 저장소만으로 같은 결과를 확인하는 방법과 운영체제별 주의사항은 [13. 재현 방법 및 주의사항](#13-재현-방법-및-주의사항)에 정리했다.
 
+### 프로젝트 디렉토리 구조
+
+```
+mission1_yeoreum/
+├── README.md              # 기술 문서 (수행 로그, 증거, 트러블슈팅, 재현 방법)
+├── app/                   # Dockerfile 기반 웹 서버 소스
+│   ├── Dockerfile         # nginx:alpine 기반 커스텀 이미지(myweb) 빌드 설정
+│   └── index.html         # 웹 서버가 제공하는 페이지 (Hello Docker!)
+├── bindtest/              # 바인드 마운트 실습용 호스트 폴더
+│   └── index.html         # 호스트에서 수정해 컨테이너 반영을 확인한 파일
+└── images/                # README에 첨부한 증거 스크린샷
+```
+
+| 폴더 | 역할 | 구성 기준 |
+| --- | --- | --- |
+| `app/` | 이미지로 빌드할 소스 | `docker build`의 빌드 컨텍스트가 되므로 이미지에 들어갈 파일만 둔다 |
+| `bindtest/` | 바인드 마운트 대상 | 이미지와 분리해, 컨테이너 재빌드 없이 호스트 수정이 반영되는지 확인하는 용도로만 쓴다 |
+| `images/` | 증거 자료 | 실행 코드와 섞이지 않도록 스크린샷만 모아 README에서 상대 경로로 참조한다 |
+
 ## 2. 실행 환경
 
 | 항목 | 내용 |
@@ -242,6 +261,10 @@ f74acf786fa91e121825979b8fb7c9f4b3fa609212c28a0d493548903ab91e43
 - `-p 8080:80` → 내 PC의 8080 포트를 컨테이너의 80 포트(nginx)에 연결
 - 브라우저에서 `http://localhost:8080` 접속 시 웹 페이지 정상 표시
 
+**포트 매핑이 필요한 이유 (네트워크 네임스페이스)**
+- 컨테이너는 리눅스의 **네트워크 네임스페이스**로 호스트와 분리된 자신만의 네트워크(IP, 포트 공간)를 가진다. 그래서 컨테이너 안의 nginx가 80번 포트에서 동작해도, 호스트의 `localhost:80`과는 별개의 공간이라 호스트에서 바로 접근할 수 없다.
+- `-p 8080:80`은 호스트의 8080 포트로 들어온 요청을 Docker가 컨테이너 네임스페이스의 80 포트로 전달(포트 포워딩)하도록 설정한다. 이 때문에 컨테이너마다 내부 포트는 같은 80을 써도 되지만, 호스트 포트는 겹치면 안 된다(`mywebserver` 8080, `bindweb` 8081).
+
 ![localhost:8080 접속 화면](images/port_8080.jpg)
 
 ---
@@ -373,6 +396,53 @@ PS C:\Users\User\webproject> docker volume inspect mydata
 ]
 ```
 - 결과: 컨테이너(`voltest`)를 삭제해도 볼륨 데이터가 유지되어, 새 컨테이너(`voltest2`)에서 같은 파일을 확인함
+
+**볼륨 백업·복구 검증**
+
+볼륨은 컨테이너를 지워도 남지만, `docker volume rm`이나 Docker 재설치 시에는 사라진다. 그래서 임시 컨테이너로 볼륨 내용을 호스트 폴더에 압축 파일로 백업하고, 원래 볼륨을 삭제한 뒤 새 볼륨에 복구되는지 확인했다.
+
+> 이 검증은 미션1 실습 PC가 아닌 **개인 노트북**(Windows, PowerShell, Docker Desktop)에서 2026-11-12에 따로 수행했다. 사용자 폴더 이름은 `User`로 가렸다.
+
+**① 볼륨 생성 및 파일 저장**
+```
+PS C:\Users\User> docker volume create mydata
+mydata
+PS C:\Users\User> docker run --rm -v mydata:/data ubuntu sh -c "echo hello-volume > /data/test.txt"
+PS C:\Users\User> docker run --rm -v mydata:/data ubuntu cat /data/test.txt
+hello-volume
+```
+
+**② 백업: 볼륨 내용을 호스트 폴더에 압축 파일로 저장**
+```
+PS C:\Users\User> docker run --rm -v mydata:/data -v "${PWD}:/backup" ubuntu tar czf /backup/mydata-backup.tar.gz -C /data .
+PS C:\Users\User> dir
+    디렉터리: C:\Users\User
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+...
+-a----      2026-11-12   오후 8:32            163 mydata-backup.tar.gz
+```
+- 볼륨(`/data`)과 호스트 현재 폴더(`/backup`)를 함께 연결한 임시 컨테이너에서 `tar`로 압축했다
+- `dir` 출력은 백업 파일 줄만 남기고 나머지 개인 폴더 목록은 생략했다
+
+**③ 원래 볼륨 삭제 (데이터 손실 상황 재현)**
+```
+PS C:\Users\User> docker volume rm mydata
+mydata
+PS C:\Users\User> docker volume ls
+DRIVER    VOLUME NAME
+```
+
+**④ 복구: 백업 파일을 새 볼륨에 풀고 확인**
+```
+PS C:\Users\User> docker run --rm -v mydata-restore:/data -v "${PWD}:/backup" ubuntu tar xzf /backup/mydata-backup.tar.gz -C /data
+PS C:\Users\User> docker run --rm -v mydata-restore:/data ubuntu cat /data/test.txt
+hello-volume
+```
+- `mydata-restore` 볼륨은 미리 만들지 않았지만, `docker run -v`에 없는 볼륨 이름을 쓰면 Docker가 자동으로 생성한다
+- 원래 볼륨을 삭제한 뒤에도 백업 파일로 복구한 새 볼륨에서 `hello-volume`이 출력되어 **백업·복구 성공**
+- `--rm`은 작업이 끝나면 임시 컨테이너를 자동 삭제한다. macOS·Linux에서는 `${PWD}` 대신 `$(pwd)`를 쓴다
+- 중요한 데이터는 백업 파일을 정기적으로 만들고, 다른 위치에도 보관한다
 
 ---
 
@@ -537,3 +607,31 @@ docker volume rm mydata
 | 포트 | 8080, 8081 사용 | 이미 사용 중이면 `port is already allocated` 에러 → `-p 9090:80`처럼 다른 내 PC 포트로 변경 |
 | 컨테이너 이름 | `mywebserver`, `bindweb`, `voltest`, `voltest2` | 같은 이름이 이미 있으면 `Conflict` 에러 → `docker rm -f <이름>` 후 재실행 (11번 트러블슈팅 1 참고) |
 | Docker 실행 상태 | Docker Desktop 실행 후 사용 | `error during connect` 등이 나오면 Docker Desktop(엔진)을 먼저 실행 |
+
+### 13-3. 포트 충돌 진단 절차 (참고)
+
+> `port is already allocated` 에러가 났을 때 확인하는 순서를 정리한 것으로, 이번 실습 로그에는 실행 기록이 없다.
+
+**① 다른 컨테이너가 그 포트를 쓰는지 확인**
+```
+docker ps --filter "publish=8080"
+```
+→ 결과가 나오면 해당 컨테이너를 멈추거나(`docker stop <이름>`) 지운다(`docker rm -f <이름>`).
+
+**② Docker가 아닌 다른 프로그램이 쓰는지 확인 → PID 찾기**
+
+Windows (PowerShell):
+```
+netstat -ano | findstr :8080
+tasklist /FI "PID eq <PID>"
+```
+macOS / Linux:
+```
+lsof -i :8080
+ss -ltnp | grep :8080
+```
+→ 맨 끝 숫자(Windows) 또는 PID 열에서 프로세스 번호를 확인하고, 어떤 프로그램인지 확인한다.
+
+**③ 포트 해제 또는 다른 포트 사용**
+- 종료해도 되는 프로그램이면 종료: Windows `taskkill /PID <PID> /F`, macOS·Linux `kill <PID>`
+- 종료하면 안 되는 프로그램이면 내 PC 포트만 바꿔 실행: `-p 9090:80`
