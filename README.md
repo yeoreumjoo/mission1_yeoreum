@@ -12,6 +12,8 @@
 - 바인드 마운트와 볼륨으로 데이터 연결·영속성 확인
 - Git 설정 및 GitHub / VS Code 연동
 
+> 이 저장소만으로 같은 결과를 확인하는 방법과 운영체제별 주의사항은 [13. 재현 방법 및 주의사항](#13-재현-방법-및-주의사항)에 정리했다.
+
 ## 2. 실행 환경
 
 | 항목 | 내용 |
@@ -51,7 +53,8 @@ Major  Minor  Build  Revision
 | 파일 권한 설정 (chmod) | ✅ | [4-2. 권한 설정](#4-2-파일-권한-설정) |
 | Docker 설치 및 점검 | ✅ | [5. Docker 설치·점검](#5-docker-설치점검) |
 | Dockerfile 웹 서버 | ✅ | [6. Dockerfile 웹 서버](#6-dockerfile-기반-웹-서버) |
-| 포트 매핑 접속 | ✅ | [6-4. 포트 매핑 접속](#6-4-포트-매핑-접속-확인) |
+| 포트 매핑 접속 (2개 포트: 8080, 8081) | ✅ | [6-4. 포트 매핑 접속](#6-4-포트-매핑-접속-확인), [8. 바인드 마운트](#8-바인드-마운트-검증) |
+| 재현 방법·주의사항 | ✅ | [13. 재현 방법](#13-재현-방법-및-주의사항) |
 | Docker 운영 명령 | ✅ | [7. Docker 운영 로그](#7-docker-운영-로그) |
 | 바인드 마운트 | ✅ | [8. 바인드 마운트](#8-바인드-마운트-검증) |
 | Docker 볼륨 영속성 | ✅ | [9. 볼륨 영속성](#9-docker-볼륨-영속성-검증) |
@@ -315,7 +318,7 @@ PS C:\Users\User\webproject> docker exec bindweb cat /usr/share/nginx/html/index
 ![변경 전](images/bind_before.jpg)
 
 **호스트 파일 수정 후** (컨테이너 재시작 없음)
-VS Code에서 호스트의 `bindtest/index.html` 내용을 `<h1>after</h1>`로 수정·저장한 뒤 확인
+호스트의 `bindtest/index.html` 내용을 VS Code 편집기에서 `<h1>after</h1>`로 수정·저장했다. 컨테이너는 재시작하지 않았고, 반영 여부는 아래처럼 터미널과 브라우저로 확인했다. (터미널만으로 수정하려면 PowerShell에서 `Set-Content bindtest/index.html "<h1>after</h1>"`를 실행하면 같은 결과가 나온다.)
 ```
 PS C:\Users\User\webproject> docker exec bindweb cat /usr/share/nginx/html/index.html
 <h1>after</h1>
@@ -467,3 +470,70 @@ GitHub 저장소 화면 (업로드된 파일 및 README 확인)
 | 볼륨 영속성 | `docker volume create`, `docker rm`, `docker exec ... cat` | [9](#9-docker-볼륨-영속성-검증) |
 | Git 설정 | `git config --list` | [10](#10-git-설정-및-githubvs-code-연동) |
 | GitHub 연동 | VS Code Publish to GitHub, Commit → Sync | [10](#10-git-설정-및-githubvs-code-연동) |
+
+---
+
+## 13. 재현 방법 및 주의사항
+
+이 저장소를 받아서 아래 순서대로 실행하면 같은 결과를 확인할 수 있다. Docker Desktop(또는 Docker Engine)과 Git이 설치되어 있고, Docker가 **실행 중**이어야 한다.
+
+### 13-1. 재현 절차
+
+**① 저장소 받기**
+```
+git clone https://github.com/yeoreumjoo/mission1_yeoreum.git
+cd mission1_yeoreum
+```
+
+**② Dockerfile로 이미지 빌드 및 포트 매핑 실행**
+```
+cd app
+docker build -t myweb .
+docker run -d -p 8080:80 --name mywebserver myweb
+cd ..
+```
+→ 브라우저에서 `http://localhost:8080` 접속 시 **Hello Docker!** 표시 (터미널에서는 `curl http://localhost:8080`으로도 확인 가능)
+
+**③ 바인드 마운트 (두 번째 포트 8081)**
+
+PowerShell:
+```
+docker run -d --name bindweb -p 8081:80 -v "${PWD}/bindtest:/usr/share/nginx/html" nginx:alpine
+```
+macOS / Linux (bash, zsh):
+```
+docker run -d --name bindweb -p 8081:80 -v "$(pwd)/bindtest:/usr/share/nginx/html" nginx:alpine
+```
+→ `http://localhost:8081` 접속 시 `bindtest/index.html`의 내용이 표시된다. 이 파일을 수정하고 새로고침하면 컨테이너 재시작 없이 바로 바뀐다.
+
+**④ 볼륨 영속성**
+```
+docker volume create mydata
+docker run -d --name voltest -v mydata:/data ubuntu sleep infinity
+docker exec voltest sh -c "echo hello-volume > /data/test.txt"
+docker exec voltest cat /data/test.txt
+docker rm -f voltest
+docker run -d --name voltest2 -v mydata:/data ubuntu sleep infinity
+docker exec voltest2 cat /data/test.txt
+```
+→ 컨테이너를 삭제한 뒤에도 마지막 명령에서 `hello-volume`이 출력되면 성공
+
+**⑤ 정리 (선택)**
+```
+docker rm -f mywebserver bindweb voltest2
+docker volume rm mydata
+```
+
+### 13-2. 환경별 주의사항
+
+이 README의 로그는 **Windows 11 + PowerShell** 환경에서 기록했다. 다른 환경에서는 아래를 바꿔서 실행한다.
+
+| 항목 | 이 README (Windows PowerShell) | 대체 방법 |
+| --- | --- | --- |
+| 작업 폴더 경로 | `C:\Users\User\webproject` (작성자 PC 경로) | 원하는 위치에 저장소를 clone하고 그 폴더에서 실행 |
+| 현재 폴더 표기 (`-v`) | `${PWD}` | macOS·Linux: `$(pwd)` |
+| 파일에 내용 쓰기 | `Set-Content bindtest/index.html "<h1>Before</h1>"` | macOS·Linux·Git Bash: `echo "<h1>Before</h1>" > bindtest/index.html` |
+| 대화형 접속 (`-it`) | PowerShell에서 정상 동작 | Windows Git Bash에서는 `-it`가 동작하지 않을 수 있으므로 PowerShell 사용 (또는 `winpty docker exec -it ...`) |
+| 포트 | 8080, 8081 사용 | 이미 사용 중이면 `port is already allocated` 에러 → `-p 9090:80`처럼 다른 내 PC 포트로 변경 |
+| 컨테이너 이름 | `mywebserver`, `bindweb`, `voltest`, `voltest2` | 같은 이름이 이미 있으면 `Conflict` 에러 → `docker rm -f <이름>` 후 재실행 (11번 트러블슈팅 1 참고) |
+| Docker 실행 상태 | Docker Desktop 실행 후 사용 | `error during connect` 등이 나오면 Docker Desktop(엔진)을 먼저 실행 |
